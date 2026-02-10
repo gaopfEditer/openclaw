@@ -50,33 +50,72 @@ function resolveRunner() {
   return null;
 }
 
+// Escape arguments for Windows shell
+function escapeArg(arg) {
+  if (!arg.includes(" ") && !arg.includes('"') && !arg.includes("&") && !arg.includes("|")) {
+    return arg;
+  }
+  // Escape quotes and wrap in quotes
+  return `"${arg.replace(/"/g, '\\"')}"`;
+}
+
 function run(cmd, args) {
-  const child = spawn(cmd, args, {
+  const options = {
     cwd: uiDir,
     stdio: "inherit",
     env: process.env,
-    shell: process.platform === "win32",
-  });
-  child.on("exit", (code, signal) => {
-    if (signal) {
-      process.exit(1);
-    }
-    process.exit(code ?? 1);
-  });
+    shell: true,
+  };
+  if (process.platform === "win32") {
+    // On Windows, build command line with proper quoting
+    const quotedCmd = escapeArg(cmd);
+    const quotedArgs = args.map(escapeArg);
+    const cmdLine = [quotedCmd, ...quotedArgs].join(" ");
+    const child = spawn(cmdLine, [], options);
+    child.on("exit", (code, signal) => {
+      if (signal) {
+        process.exit(1);
+      }
+      process.exit(code ?? 1);
+    });
+  } else {
+    const child = spawn(cmd, args, options);
+    child.on("exit", (code, signal) => {
+      if (signal) {
+        process.exit(1);
+      }
+      process.exit(code ?? 1);
+    });
+  }
 }
 
 function runSync(cmd, args, envOverride) {
-  const result = spawnSync(cmd, args, {
+  const options = {
     cwd: uiDir,
     stdio: "inherit",
     env: envOverride ?? process.env,
-    shell: process.platform === "win32",
-  });
-  if (result.signal) {
-    process.exit(1);
-  }
-  if ((result.status ?? 1) !== 0) {
-    process.exit(result.status ?? 1);
+    shell: true,
+  };
+  if (process.platform === "win32") {
+    // On Windows, build command line with proper quoting
+    const quotedCmd = escapeArg(cmd);
+    const quotedArgs = args.map(escapeArg);
+    const cmdLine = [quotedCmd, ...quotedArgs].join(" ");
+    const result = spawnSync(cmdLine, [], options);
+    if (result.signal) {
+      process.exit(1);
+    }
+    if ((result.status ?? 1) !== 0) {
+      process.exit(result.status ?? 1);
+    }
+  } else {
+    const result = spawnSync(cmd, args, options);
+    if (result.signal) {
+      process.exit(1);
+    }
+    if ((result.status ?? 1) !== 0) {
+      process.exit(result.status ?? 1);
+    }
   }
 }
 
